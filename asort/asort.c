@@ -8,6 +8,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+/**
+ * Alec Rospierski
+ * asort
+ * Sorts n files using the sort system call in n forked processes
+ */ 
 int main(int argc, char **argv) {
 	if (argc < 2) {
 		char *error = "asort <file1> <file2> <file3> ... <filen>\n";
@@ -36,13 +41,15 @@ int main(int argc, char **argv) {
 			close(2);
 			open("/dev/null/", O_RDWR);
 			open("/dev/null/", O_RDWR);
-			
-			char *path = malloc(9 + strlen(argv[i]));
-			memset(path, 0, strlen(argv[i]) + 9);
-			strncat(path, "./SORTED/", 9);
-			strncat(path, argv[i], strlen(argv[i]));
-            sleep(1);
+	        
+            // Create the path for the sorted file		
+            char path[9 + strlen(argv[i])];
+            sprintf(path, "./SORTED/%s", argv[i]);
+
+            // Execute the sort system call using the specified path
 			execl("/bin/sort", "sort", argv[i], "-o", path, (char *)  NULL);
+                
+            // If execl fails, print error message and quit program
             char *terminate = "Unable to call sort system call.\n";
             write(2, terminate, strlen(terminate));
             return 1;
