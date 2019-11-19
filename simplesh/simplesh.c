@@ -19,6 +19,9 @@ int maxWordLen(char *string) {
     int max = 0;
     int temp = 0;
     for (int i = 0; i < strlen(string); i++) {
+        if (string[i] == '\n') {
+            string[i] = '\0';
+        }
         if (string[i] == ' ' || string[i] == '\n') {
             if (temp > max) {
                 max = temp;
@@ -30,7 +33,7 @@ int maxWordLen(char *string) {
     return max;
 }
 
-char **splitCommand(char *string) {
+char **splitString(char *string, int newLine) {
     int length = maxWordLen(string);
     int words = countChar(string, ' '); 
     char **result = malloc(length * (words + 2));
@@ -39,10 +42,35 @@ char **splitCommand(char *string) {
         result[i] = ptr;
         ptr = strtok(0, " "); 
     }
-    result[words + 1] = "\n";
+    if (newLine) {
+        result[words + 1] = "\n";
+    }
     return result;   
 }
 
+int waitForProcess(int cpid) {
+    int stat;
+    waitpid(cpid, &stat, 0);
+
+    // If passed, Return pass message
+    // Else, return fail message
+    if (WIFEXITED(stat)) {
+        int status = WEXITSTATUS(stat);
+        printf("STATUS: %d\n", status);
+        if (status == 0) {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+}
+
+
+/**
+ * The main Program
+*/
 int main(int argc, char **argv) {
 
     // Loop for the command line
@@ -56,25 +84,67 @@ int main(int argc, char **argv) {
         do {
             read(1, &ch, 1);
             input[count++] = ch;
+
+            // Reallocate Memory if needed for input
+            // TODO
         } while (ch != '\n');
         
-        char **cmd = splitCommand(input);
+        char **cmd = splitString(input, 1);
 
         // if exit, exit simplesh
-        char exit[] = "exit";
+        char exitMess[] = "exit";
         int test;
-        if ((test = strncmp(cmd[0], exit, 4)) == 0) {
+        if ((test = strncmp(cmd[0], exitMess, 4)) == 0) {
             free(cmd);
             free(input);
             break;
         }
 
-        // Test print all of the commands
+        // Handle the commands
         int i = 0;
         while (strcmp(cmd[i], "\n") != 0) {
-            printf("%s\n", cmd[i]);
-            i++;
-        } 
+
+            // Build the arguments
+            char *args = malloc(sizeof(char) * strlen(input));
+            args = memset(args, '\0', sizeof(char) * strlen(input));
+            while (strcmp(cmd[i], "\n") != 0) {
+                args = strncat(args, cmd[i], strlen(cmd[i]));
+                char space = ' ';
+                args = strncat(args, &space, 1);
+                i++;
+            }
+
+            char **argArray = splitString(args, 0);
+            
+            // execute process
+            int cpid;
+            if ((cpid = fork()) == 0) {
+                int ret = execvp(argArray[0], argArray);
+                if (ret == -1) {
+                    free(argArray);
+                    exit(1);
+                }
+            }
+
+            // Wait for process to finish
+            int testProcess = waitForProcess(cpid);
+            // Process Failed
+            if (testProcess == 0) {
+                printf("TEMPORARY FAIL MESSAGE\n");
+            }
+
+            free(args);
+            free(argArray);
+            char newLine = '\n';
+            write(1, &newLine, 1);
+        }
+
+        // Test print all of the commands
+        // int i = 0;
+        // while (strcmp(cmd[i], "\n") != 0) {
+        //     printf("%s\n", cmd[i]);
+        //     i++;
+        // } 
         free(cmd);
         free(input);
     }
