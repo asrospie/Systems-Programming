@@ -19,6 +19,7 @@ int main(int argc, char **argv) {
 
     // Set up all of the given information
     char nickname[16];
+    memset(nickname, '\0', 16);
     char *address;
     int port;
     strncpy(nickname, argv[3], strlen(argv[3]));
@@ -42,46 +43,46 @@ int main(int argc, char **argv) {
         char errMsg[] = "Could not connect to given server.\n";
         write(0, errMsg, strlen(errMsg));
         return 0;
+    } else {
+        char joinMsg[50];
+        sprintf(joinMsg, "0<%s>", nickname);
+        joinMsg[strlen(joinMsg)] = '\0';
+        write(sock, joinMsg, strlen(joinMsg));
     }
 
     int cpid;
+    int inputSize = 136;
     
     // Child Process will listen to the server
     if ((cpid = fork() == 0)) {
-        char buffer[128];
+        char buffer[inputSize];
+        memset(buffer, '\0', inputSize);
         int charsRead;
         for (;;) {
-            if ((charsRead = read(sock, buffer, 128)) > 0) {
+            if ((charsRead = read(sock, buffer, inputSize)) > 0) {
                 write(0, buffer, strlen(buffer));
                 char newLine = '\n';
                 write(0, &newLine, 1);
-                bzero(buffer, 128);
+                bzero(buffer, inputSize);
             }
         }
+        exit(0);
     }
 
     // Loop for sending messages
     for(;;) {
         
         // Taking in input
-        char input[136];
+        int msgSize = 128;
+        char input[msgSize];
         int counter = 0;
-
-        // Set up message header
-        input[counter++] = '1';
-        input[counter++] = '<';
-        for (int i = 0; i < strlen(nickname); i++) {
-            input[counter++] = nickname[i];   
-        }
-        input[counter++] = '>';
-        input[counter++] = ' ';
         
         char ch;
         read(1, &ch, 1);
         while (ch != '\n') {
             input[counter] = ch;
             counter++;
-            if (counter == 128) {
+            if (counter == msgSize) {
                 char errMsg[] = "Message is too long.\n";
                 write(0, errMsg, strlen(errMsg));
                 return 0;
@@ -90,14 +91,24 @@ int main(int argc, char **argv) {
         }          
         input[counter] = '\0';
 
+        // Exit message
+        if (strncmp(input, "exit", 4) == 0) {
+            char exitMsg[25];
+            sprintf(exitMsg, "2<%s>", nickname);
+            write(sock, exitMsg, strlen(exitMsg));
+            close(sock);
+            kill(cpid, SIGTERM);
+            return 0;
+        }
+
         // Writing to the socket
         int num;
-        if ((num = write(sock, input, counter)) < 0) {
+        char message[inputSize];
+        sprintf(message, "1<%s> %s", nickname, input);
+        if ((num = write(sock, message, strlen(message))) < 0) {
             char errMsg[] = "Write to server failed.\n";
             write(0, errMsg, strlen(errMsg));
-        } else {
-            printf("%s WAS SENT\n", input);
-        }
+        } 
 
         //if (strncmp(input, "exit", 4) == 0) {
         //    char quit[] = "You have terminated connection.\n";

@@ -73,18 +73,15 @@ int main() {
         
         // Check for select errors
         if (act < 0) {
-            printf("TEMP SELECT ERROR\n");
+            char selectErr[] = "There was an error in select.\n";
+            write(1, selectErr, strlen(selectErr));
+            exit(0);
         }
 
         // Handle incoming connection
         if (FD_ISSET(listener, &readfds)) {
             int newSock = accept(listener, (struct sockaddr *)&s, 
                                     (socklen_t*)&length);
-
-            // Send welcome message
-            char welcome[] = "Connection Established, welcome!\n";
-            write(newSock, welcome, strlen(welcome));
-            printf("NEW CONNECTION %d\n", newSock);
 
             // Add new connection to connections list
             for (int i = 0; i < clientMax; i++) {
@@ -96,23 +93,48 @@ int main() {
         }
 
         // Create the buffer for the message to be stored
-        char buffer[128];
-        bzero(buffer, 128);
+        int bufferSize = 136;
+        char buffer[bufferSize];
+        bzero(buffer, bufferSize);
+
         for (int i = 0; i < clientMax; i++) {
             int fd = connections[i];
             if (FD_ISSET(fd, &readfds)) {
                     
                 // Read in message from client
-                int charsRead = read(fd, buffer, 128);
+                char head;
+                read(fd, &head, 1);
+                int charsRead = read(fd, buffer, bufferSize);
 
-                printf("MESSAGE RECEIVED: %s\n", buffer);
-
-                // If exit message, close the connection
-                if (strncmp(buffer, "exit", 4) == 0) {
+                // Exit message handling
+                if (head == '2') {
                     close(fd);
                     connections[i] = -1;
-                }   
+                    char goodbye[50];  
+                    sprintf(goodbye, "%s has left the server.", buffer);
+                    for (int j = 0; j < clientMax; j++) {
+                        if (connections[j] != listener && connections[j] > 0) {
+                            write(connections[j], goodbye, strlen(goodbye));
+                        }
+                    }
+                    continue;
+                } 
                 
+                // New connection Message
+                if (head == '0') {
+                    char welcome[50];
+                    memset(welcome, '\0', 50);
+                    sprintf(welcome, "%s has joined the server!", buffer);
+                    welcome[strlen(welcome)] = '\0';
+                    
+                    // Print welome message to all clients
+                    for (int j = 0; j < clientMax; j++) {
+                        if (connections[j] != listener && connections[j] > 0) {
+                            write(connections[j], welcome, strlen(welcome));
+                        }
+                    }
+                }
+
                 // else, write message to other clients
                 else {
                     buffer[charsRead] = '\0';
@@ -120,7 +142,6 @@ int main() {
                         if (connections[j] != listener && connections[j] > 0
                             && connections[j] != fd) {
                             write(connections[j], buffer, strlen(buffer));
-                            printf("BUFFER WRITTEN TO %d\n", connections[j]);
                         }
                     }
                 }
